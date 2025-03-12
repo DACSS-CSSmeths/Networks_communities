@@ -1,0 +1,273 @@
+<br>
+
+<center><img src="https://github.com/DACSS-CSSmeths/guidelines/blob/main/pics/small_logo_ccs_meths.jpg?raw=true" width="700"/></center>
+
+# Communities in Networks using R
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy(position = c('top', 'right'))
+```
+
+In the [first tutorial](https://dacss-cssmeths.github.io/Networks_intro/) we learned to prepare a network from a bipartite structure. Let's reopen that file:
+
+This is the link to that network from a GitHub repo:
+
+```{r, eval=TRUE, message=FALSE}
+rm(list = ls())
+GitLink='https://github.com/DACSS-CSSmeths/Networks_intro/raw/refs/heads/main/MyGraphs/css_bP.graphml'
+library(igraph)
+actors=read_graph(GitLink,format='graphml')
+V(actors)$name=V(actors)$id
+```
+
+Let's draw the network:
+
+```{r, eval=TRUE, message=FALSE}
+set.seed(111) # use this to get same results as me
+
+plot.igraph(actors)
+```
+
+# The Existence of Communities
+
+The job now is to find out if among these people we could detect a particular pattern of connections that may mean the presence of communities emerging from the relationships. Let's compute some basic net stats to see if we can suspect the existence of communities.
+
+## Clustering
+
+If the nodes are clustering, it is a first sign that communities may be present. Think in terms in triangles and triplets. If you have one node connected to other two nodes, you have a triplet; if those other two nodes are also connected you have a closed triplet or a triangle, if not you have an open triplet.
+
+So, there are actually two ways to compute a clustering coefficient; the first one based on a simple division between the triangles by the triplets counts in the whole graph, this is the *global clustering coefficient*:
+
+<center><img src="https://github.com/DACSS-CSSmeths/Networks_communities/blob/main/pics/GClusteringCoeff.png?raw=true" width="700"/></center>
+
+[image source](https://link.springer.com/referenceworkentry/10.1007/978-1-4419-9863-7_1239)
+
+```{r}
+transitivity(actors,type = "global")
+```
+
+The other based on computing an average of that same division but in the neighborhood of each node; this is the *local average clustering coefficient*:
+
+<center><img src="https://github.com/DACSS-CSSmeths/Networks_communities/blob/main/pics/LClusteringCoeff.png?raw=true" width="700"/></center>
+
+[image source](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0258867)
+
+Here, I compute the local version by actor:
+
+```{r, eval=TRUE, message=FALSE}
+transitivity(actors,type = "local")
+```
+
+Then, the average of the above values:
+
+```{r, eval=TRUE, message=FALSE}
+transitivity(actors,type = "average")
+```
+
+## CLIQUES
+
+A clique is a sub set of nodes with density equal to one (1).
+
+This can be the inventory of cliques:
+
+```{r}
+clique_size_counts(actors)
+```
+
+Since the minimum value is 1, you have 11 cliques of one node, 14 cliques of two nodes, and two cliques of three nodes.
+
+Here, we can know who are in the biggest cliques:
+
+```{r}
+largest_cliques(actors)
+```
+
+I can draw those cliques here:
+
+```{r}
+LCq=largest_cliques(actors)
+par(mfrow = c(1, 3)) 
+plot(actors,main='All network')
+plot(induced_subgraph(actors, LCq[[1]]), main="Largest Clique  (A)")
+plot(induced_subgraph(actors, LCq[[2]]), main="Largest Clique  (B)")
+```
+
+# Detecting Communities
+
+Analyzing clustering triplets and cliques can be helpful in very small networks. That is why several algorithms have been created for community detection when we have much more nodes and edges.
+
+## Girvan-Newman (Edge Betweenness)
+
+Last week we introduced the node betweenness, this is very similar. In this case, the algorithm finds the *edge* most likely to partition de whole graph. Then, a measure named [modularity](https://en.wikipedia.org/wiki/Modularity_(networks)) is computed. Then, for each of the partitions, the edge with highest betweenness is removed. If the modularity drops, the algorithm stops.
+
+Here, we compute the Girvan-Newmann:
+
+```{r, warning=FALSE}
+actors_eb <- cluster_edge_betweenness(actors,directed = F)
+```
+
+Here we see the sizes of each community:
+
+```{r}
+sizes(actors_eb)
+```
+
+From above, you have two communities, one with seven actors, and the other with four ones. Let's see:
+
+```{r}
+plot(actors_eb, actors,
+     layout = layout_with_kk, 
+     main="Girvan-Newman Solution")
+```
+
+This is the *modularity* of this result:
+
+```{r}
+modularity(actors_eb)
+```
+
+As the Girvan Newman partitions the whole network, and subsequently each partition, and then each partition, this algorithm follows a **divisive** strategy
+
+## The LOUVAIN method
+
+The Louvain method is **agglomerative**, that is, it starts from the nodes, and creates small coomunities from the bottom up.
+
+```{r}
+actors_lv <- cluster_louvain(actors)
+sizes(actors_lv)
+```
+
+Louvain found the nodes belong to three communities, a different result from Girvan-Newman.
+
+```{r}
+
+plot(actors_lv, actors,
+     layout = layout_with_kk, 
+     main="Louvain Solution")
+```
+
+The modularity of the partition:
+
+```{r}
+modularity(actors_lv)
+```
+
+Girvan-Newman has a higher modularity, but the difference might not be significant.
+
+## The LEIDEN method
+
+The Leiden method is **agglomerative**, too, but it allows the finding of small communities.
+
+Let me compute the communities using the default function parameters:
+
+```{r}
+actors_ld <- cluster_leiden(actors)
+sizes(actors_ld)
+```
+
+The default shows so many communities that it looks useless to partition the graph. For a better solution be explicit about the objective function:
+
+```{r}
+set.seed(123)
+actors_ld_mod <- cluster_leiden(actors,
+                              objective_function ="modularity")
+
+sizes(actors_ld_mod)
+```
+
+```{r}
+plot(actors_ld_mod, actors,
+     layout = layout_with_kk, 
+     main="Leiden Solution-using modularity")
+```
+
+```{r}
+modularity(actors, membership(actors_ld_mod))
+```
+
+Leiden can use a different objective function, the Constant Potts Model (CPM). However, you need to figure out the resolution parameter. When you use "modularity" as above, the resolution parameter is 1. Let's use CPM with a couple of resolution parameters that appeared in this [discussion](<https://github.com/igraph/rigraph/issues/529>):
+
+```{r}
+set.seed(123)
+### Higher resolutions lead to more smaller communities, while lower resolutions lead to fewer larger communities.
+
+#r = quantile(strength(actors))[2]/(gorder(actors) - 1)
+r=edge_density(actors) 
+actors_ld_cpm <- cluster_leiden(actors,
+                              objective_function ="CPM",
+                              resolution_parameter = r)
+
+sizes(actors_ld_cpm)
+```
+
+```{r}
+plot(actors_ld_cpm, actors,
+     layout = layout_with_kk, 
+     main="Leiden Solution-using Pots Model")
+```
+
+```{r}
+modularity(actors, membership(actors_ld_cpm))
+```
+
+For a further discussion about Louvain and Leiden, you can see this paper on [Nature](<https://www.nature.com/articles/s41598-019-41695-z>).
+
+## What about directed graphs!
+
+We used this graph last session (Presidents -Twitter followers):
+
+```{r}
+GitLink='https://github.com/DACSS-CSSmeths/Networks_exploration/raw/refs/heads/main/presis.graphml'
+presis=read_graph(GitLink,format='graphml')
+
+# keeping just the giant component
+presis_giant=CINNA::giant_component_extract(presis)[[1]]
+summary(presis_giant)
+```
+
+
+Most algorithms to find communities do not take into account directionality (they return communities, but disregard edges direction), or can not process a directed graph (they give an error if the graph is directed). 
+
+However, these are the ones available in **igraph**:
+
+
+* **Girvan-Newmann**:
+```{r, warning=FALSE}
+set.seed(333)
+sizes(cluster_edge_betweenness(presis_giant,directed = T))
+```
+
+* **Label propagation**:
+
+This algorithm is bottom up (aggregative). It starts by considering each node a community, so there are as many communities as nodes. Then, communities emerge as nodes connect in **one** direction to other node: a community emerges depending edges direction:
+
+
+```{r}
+sizes(cluster_label_prop(presis_giant, mode = 'out'))
+```
+
+
+* **infomap**:
+
+This algorithm emerges from **walks** in the graph. If a person walks the graph, and remains in a section of the graph while visiting the nodes, it is a possible community.
+
+```{r}
+sizes(cluster_infomap(presis_giant))
+```
+Let me plot this last one:
+
+```{r, fig.height=15}
+set.seed(332)
+
+presis_info=cluster_infomap(presis_giant)
+plot(presis_info, presis_giant,
+     vertex.label=V(presis_giant)$country,
+     layout = layout_nicely, vertex.label.cex=0.5,
+     main="Infomap solution")
+```
+
+
+
+
+
+You may go to CANVAS to see the Homework instructions.
