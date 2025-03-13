@@ -103,19 +103,19 @@ Last week we introduced the node betweenness, this is very similar. In this case
 Here, we compute the Girvan-Newmann:
 
 ```{r, warning=FALSE}
-actors_eb <- cluster_edge_betweenness(actors,directed = F)
+actors_gn <- cluster_edge_betweenness(actors,directed = F)
 ```
 
 Here we see the sizes of each community:
 
 ```{r}
-sizes(actors_eb)
+sizes(actors_gn)
 ```
 
 From above, you have two communities, one with seven actors, and the other with four ones. Let's see:
 
 ```{r}
-plot(actors_eb, actors,
+plot(actors_gn, actors,
      layout = layout_with_kk, 
      main="Girvan-Newman Solution")
 ```
@@ -123,7 +123,7 @@ plot(actors_eb, actors,
 This is the *modularity* of this result:
 
 ```{r}
-modularity(actors_eb)
+modularity(actors, membership(actors_gn))
 ```
 
 As the Girvan Newman partitions the whole network, and subsequently each partition, and then each partition, this algorithm follows a **divisive** strategy
@@ -149,10 +149,10 @@ plot(actors_lv, actors,
 The modularity of the partition:
 
 ```{r}
-modularity(actors_lv)
+modularity(actors, membership(actors_lv))
 ```
 
-Girvan-Newman has a higher modularity, but the difference might not be significant.
+Girvan-Newman has a similar modularity, but here we got more communities.
 
 ## The LEIDEN method
 
@@ -264,6 +264,11 @@ plot(presis_info, presis_giant,
      vertex.label=V(presis_giant)$country,
      layout = layout_nicely, vertex.label.cex=0.5,
      main="Infomap solution")
+```
+
+We can know the modularity as usual:
+```{r}
+modularity(presis_giant, membership(presis_info))
 ```
 
 
