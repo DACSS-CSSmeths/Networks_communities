@@ -10,14 +10,19 @@ klippy::klippy(position = c('top', 'right'))
 
 In the [first tutorial](https://dacss-cssmeths.github.io/Networks_intro/) we learned to prepare a network from a bipartite structure. Let's reopen that file:
 
-This is the link to that network from a GitHub repo:
 
 ```{r, eval=TRUE, message=FALSE}
-rm(list = ls())
+rm(list = ls()) # clear memory
+
+#This is the link to that network from a GitHub repo:
 GitLink='https://github.com/DACSS-CSSmeths/Networks_intro/raw/refs/heads/main/MyGraphs/css_bP.graphml'
+
+#get network
 library(igraph)
 actors=read_graph(GitLink,format='graphml')
-V(actors)$name=V(actors)$id
+
+#making sure to have the name attribute
+V(actors)$name=V(actors)$id 
 ```
 
 Let's draw the network:
@@ -30,19 +35,20 @@ plot.igraph(actors)
 
 # The Existence of Communities
 
-The job now is to find out if among these people we could detect a particular pattern of connections that may mean the presence of communities emerging from the relationships. Let's compute some basic net stats to see if we can suspect the existence of communities.
+The job now is to find out if among these people we could detect a particular pattern of connections that may mean the presence of communities emerging from the relationships. Let's compute some basic stats for this net to see if we can suspect the existence of communities.
 
 ## Clustering
 
-If the nodes are clustering, it is a first sign that communities may be present. Think in terms in triangles and triplets. If you have one node connected to other two nodes, you have a triplet; if those other two nodes are also connected you have a closed triplet or a triangle, if not you have an open triplet.
+If the nodes are clustering, it is a first sign that communities may be present. Think in terms in triangles and triplets. If you have one node connected to other two nodes, you have a triplet  (red in Figure below); if those other two nodes are also connected you have a closed triplet or a triangle  (blue in Figure below), if not you have an open triplet.
 
-So, there are actually two ways to compute a clustering coefficient; the first one based on a simple division between the triangles by the triplets counts in the whole graph, this is the *global clustering coefficient*:
+So, there are actually two ways to compute a clustering coefficient; the first one dividing the count of triangles by the count of [open] triplets in the whole graph, this is the *global clustering coefficient*:
 
 <center><img src="https://github.com/DACSS-CSSmeths/Networks_communities/blob/main/pics/GClusteringCoeff.png?raw=true" width="700"/></center>
 
 [image source](https://link.springer.com/referenceworkentry/10.1007/978-1-4419-9863-7_1239)
 
 ```{r}
+# get the "global clustering coefficient"
 transitivity(actors,type = "global")
 ```
 
@@ -52,13 +58,13 @@ The other based on computing an average of that same division but in the neighbo
 
 [image source](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0258867)
 
-Here, I compute the local version by actor:
 
 ```{r, eval=TRUE, message=FALSE}
+# clustering coefficient by node
 transitivity(actors,type = "local")
 ```
 
-Then, the average of the above values:
+You can get the mean of those values, or alternatively:
 
 ```{r, eval=TRUE, message=FALSE}
 transitivity(actors,type = "average")
@@ -74,9 +80,7 @@ This can be the inventory of cliques:
 clique_size_counts(actors)
 ```
 
-Since the minimum value is 1, you have 11 cliques of one node, 14 cliques of two nodes, and two cliques of three nodes.
-
-Here, we can know who are in the biggest cliques:
+This means: you have 11 cliques of one node, 14 cliques of two nodes, and two cliques of three nodes. The interesting ones would be the 3-node cliques. Let's request the largest cliques:
 
 ```{r}
 largest_cliques(actors)
@@ -103,6 +107,7 @@ Last week we introduced the node betweenness, this is very similar. In this case
 Here, we compute the Girvan-Newmann:
 
 ```{r, warning=FALSE}
+set.seed(123)
 actors_gn <- cluster_edge_betweenness(actors,directed = F)
 ```
 
@@ -123,7 +128,7 @@ plot(actors_gn, actors,
 This is the *modularity* of this result:
 
 ```{r}
-modularity(actors, membership(actors_gn))
+modularity(actors, membership(actors_gn),directed = FALSE)
 ```
 
 As the Girvan Newman partitions the whole network, and subsequently each partition, and then each partition, this algorithm follows a **divisive** strategy
@@ -133,6 +138,8 @@ As the Girvan Newman partitions the whole network, and subsequently each partiti
 The Louvain method is **agglomerative**, that is, it starts from the nodes, and creates small coomunities from the bottom up.
 
 ```{r}
+set.seed(321)
+
 actors_lv <- cluster_louvain(actors)
 sizes(actors_lv)
 ```
@@ -149,7 +156,7 @@ plot(actors_lv, actors,
 The modularity of the partition:
 
 ```{r}
-modularity(actors, membership(actors_lv))
+modularity(actors, membership(actors_lv),directed = FALSE)
 ```
 
 Girvan-Newman has a similar modularity, but here we got more communities.
@@ -165,7 +172,7 @@ actors_ld <- cluster_leiden(actors)
 sizes(actors_ld)
 ```
 
-The default shows so many communities that it looks useless to partition the graph. For a better solution be explicit about the objective function:
+The default shows so many communities that it looks useless to partition the graph. For a better solution, be explicit about the objective function:
 
 ```{r}
 set.seed(123)
@@ -189,7 +196,8 @@ Leiden can use a different objective function, the Constant Potts Model (CPM). H
 
 ```{r}
 set.seed(123)
-### Higher resolutions lead to more smaller communities, while lower resolutions lead to fewer larger communities.
+### Higher resolutions lead to more smaller communities, 
+### while lower resolutions lead to fewer larger communities.
 
 #r = quantile(strength(actors))[2]/(gorder(actors) - 1)
 r=edge_density(actors) 
@@ -216,7 +224,7 @@ For a further discussion about Louvain and Leiden, you can see this paper on [Na
 
 We used this graph last session (Presidents -Twitter followers):
 
-```{r}
+```{r, message=FALSE}
 GitLink='https://github.com/DACSS-CSSmeths/Networks_exploration/raw/refs/heads/main/presis.graphml'
 presis=read_graph(GitLink,format='graphml')
 
@@ -256,7 +264,7 @@ sizes(cluster_infomap(presis_giant))
 ```
 Let me plot this last one:
 
-```{r, fig.height=15}
+```{r, fig.height=13}
 set.seed(332)
 
 presis_info=cluster_infomap(presis_giant)
